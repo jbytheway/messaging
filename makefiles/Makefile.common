@@ -1,0 +1,119 @@
+# This Makefile section is intended to compile a collection of C++ sources and
+# headers, properly keeping track of all header dependencies.  You should
+# define a few variables and then include this file - you need define no
+# targets at all to get compilation working.  If you do define any targets,
+# then you can define them after includeing this file if you wish the default
+# action to be a recursive build.
+#
+# The variables you can define are as follows.  Omit irrelevant ones.
+# SUBDIRS - a list of subdirectories to visit recursively when dealing with the
+#   'all' or 'clean' targets.  Subdirs are built after the current dir.
+# SOURCE_DIRS - a list of directories other than the current one in which to
+# 	look for sources
+# BIN - the name of the binary to compile from all the cpp files (either a .la
+#   library file, or an executable).
+# INCLUDE - include arguments, e.g. "-I.. -Imy-headers".
+# LIBS - system library arguments, e.g. "-lstdc++".
+# LIB_DEP - Libtool libraries to depend on.
+# THIS_CXXFLAGS - other args to gcc at compile stage, e.g. "-Werror".
+# THIS_LDFLAGS - other args to libtool at link stage, e.g. "-no-install".
+# PREFIX - the installation prefix, e.g. "/usr/local" (to which it defaults).
+#   Expected to be set by the user in the environment, not by the including
+#   Makefile
+
+all:
+
+CXX_SOURCES := $(wildcard *.cpp) \
+	$(foreach dir,$(SOURCE_DIRS),$(wildcard $(dir)/*.cpp))
+CXX_BASES := $(basename $(CXX_SOURCES))
+LIBTOOL_OBJS := $(foreach base,$(CXX_BASES),.obj/$(base).lo)
+CXX_OBJS := $(foreach base,$(CXX_BASES),.obj/$(base).o)
+MAKEFRAGS := \
+	$(foreach source,$(CXX_SOURCES),.makefrags/$(source).makefrag)
+
+GLOBAL_CXXFLAGS ?= -Werror -Wall -Wextra -Woverloaded-virtual -Wundef -Wpointer-arith -Wwrite-strings -O0 -g3
+
+CXX ?= g++
+
+PREFIX ?= /usr/local
+
+# Here follows cunningness to make the makefile handle headers properly
+
+ifneq ($(MAKEFRAGS),)
+include $(MAKEFRAGS)
+endif
+
+$(MAKEFRAGS): .makefrags/%.makefrag: %
+	@mkdir -p $(dir $@)
+	cpp $(INCLUDE) -MP -MM -MF $@.tmp $<
+	@echo "$@ .obj/$(filter-out ./,$(dir $<))`cat $@.tmp`" > $@
+	@rm $@.tmp
+
+# Determine whether we're compiling a library or an executable
+
+IS_LIB := $(filter %.la,$(BIN))
+
+# Default target is to build the binary (and recurse)
+
+all: $(BIN)
+	@for subdir in $(SUBDIRS); do \
+		$(MAKE) -C $$subdir $@ || exit 1 \
+		; \
+	done
+
+# Clean (recursively)
+
+clean:
+	-rm -rf .libs .obj .makefrags $(BIN) revision.h
+	@for subdir in $(SUBDIRS); do \
+		$(MAKE) -C $$subdir $@ || exit 1 \
+		; \
+	done
+
+# The compile/link commands depend of whether we're building a library or an
+# executable
+
+ifneq ($(IS_LIB),)
+# When it is a library:
+
+# Build the binary
+
+$(BIN): $(CXX_OBJS) $(LIB_DEP)
+	libtool --mode=link --tag=CXX $(CXX) $(THIS_LDFLAGS) -rpath $(PREFIX)/lib \
+		-g3 -o $@ $(LIBS) $(LIBTOOL_OBJS) $(LIB_DEP)
+
+# Libtool objects are made when normal objects are
+
+$(LIBTOOL_OBJS): %.lo: %.o
+
+# The actual compile commands (source dependencies will come from the makefrag
+# file).
+
+$(CXX_OBJS): .obj/%.o:
+	@mkdir -p $(dir $@)
+	libtool --tag=CXX --mode=compile $(CXX) $(CXXFLAGS) $(INCLUDE) $(GLOBAL_CXXFLAGS) $(THIS_CXXFLAGS) -c \
+		-o $@ $*.cpp
+
+else
+# When it is an executable
+
+# Build the binary
+
+$(BIN): $(CXX_OBJS) $(C_OBJS) $(LIB_DEP)
+	libtool --mode=link --tag=CXX $(CXX) -g3 $(THIS_LDFLAGS) -o $@ $(LIBS) $^
+
+# The actual compile commands (source dependencies will come from the makefrag
+# file).  Unlike the above, we *don't* use libtool, so as to speed up the
+# compile
+
+$(CXX_OBJS): .obj/%.o:
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) $(GLOBAL_CXXFLAGS) $(THIS_CXXFLAGS) -c \
+		-o $@ $*.cpp
+
+endif
+
+.PHONY: all clean
+
+.DELETE_ON_ERROR:
+
