@@ -5,6 +5,8 @@
 #include <boost/fusion/include/make_vector.hpp>
 #include <boost/fusion/include/for_each.hpp>
 #include <boost/spirit/phoenix/primitives.hpp>
+#include <boost/spirit/phoenix/statements.hpp>
+#include <boost/spirit/phoenix/operators.hpp>
 #include <boost/multi_index_container.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/mem_fun.hpp>
@@ -13,9 +15,10 @@
 #include <messaging/listener.hpp>
 #include <messaging/create_listener.hpp>
 #include <messaging/detail/insert.hpp>
+//#include <messaging/detail/ptr_hash.hpp>
 
 namespace messaging {
-  
+
 template<typename Callback>
 class server : boost::noncopyable {
   public:
@@ -47,10 +50,12 @@ class server : boost::noncopyable {
   private:
     template<typename ForwardSequence>
     void initialize_listeners(const ForwardSequence& endpoints) {
-      // TODO: cope with NULLs
+      listener::ptr t;
       fusion::for_each(
           endpoints,
-          detail::insert(px::var(listeners_), create_listener(px::arg1))
+          px::if_(px::var(t) = create_listener(px::arg1)) [
+            detail::insert(px::var(listeners_), px::var(t))
+          ]
         );
     }
 
@@ -61,7 +66,12 @@ class server : boost::noncopyable {
       boost::multi_index::indexed_by<
         boost::multi_index::hashed_unique<
           BOOST_MULTI_INDEX_CONST_MEM_FUN(listener, generic_endpoint, endpoint)
-        >
+        >/*,
+      boost::multi_index::hashed_unique<
+          boost::multi_index::tag<PointerTag>,
+          boost::multi_index::identity<listener::ptr>,
+          detail::ptr_hash
+        >*/
       >
     > Listeners;
     Listeners listeners_;
