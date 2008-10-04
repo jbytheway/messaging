@@ -1,7 +1,9 @@
-BIN := buccle++-test
+BIN := messaging-test
 INCLUDE := -I../include
-LIBS = -lboost_unit_test_framework-s -lstdc++
-#CXXFLAGS = -ftemplate-depth-60
+LIBS = -lboost_system -lpthread -lboost_unit_test_framework -lstdc++
 
 include ../makefiles/Makefile.common
+
+test: $(BIN)
+	./$<
 
