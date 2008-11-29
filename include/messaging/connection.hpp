@@ -10,6 +10,7 @@ class connection :
     typedef boost::shared_ptr<connection> ptr;
 
     virtual void close() = 0;
+    virtual void close_gracefully() = 0;
     virtual void send(const std::string& data) = 0;
   protected:
     connection() {}

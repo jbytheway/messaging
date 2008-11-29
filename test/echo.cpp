@@ -174,7 +174,7 @@ class server_interface {
     }
 
     void close() {
-      connection_->close();
+      connection_->close_gracefully();
     }
 
     void confirm_receipt(const std::string& text) {
@@ -213,7 +213,7 @@ class server_interface {
     }
 
     void error(const boost::system::error_code& ec) {
-      std::cerr << ec << std::endl;
+      std::cerr << "sever_interface: " << ec.message() << std::endl;
     }
 
     m::connection::ptr connection_;
