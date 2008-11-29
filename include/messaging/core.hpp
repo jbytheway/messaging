@@ -4,11 +4,13 @@
 namespace boost {
   namespace asio {}
   namespace fusion {}
+  namespace mpl {}
 }
 
 namespace messaging {
   namespace asio = boost::asio;
   namespace fusion = boost::fusion;
+  namespace mpl = boost::mpl;
   namespace px = ::phoenix;
 }
 
