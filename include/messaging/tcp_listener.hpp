@@ -45,15 +45,15 @@ class tcp_listener : public listener {
         );
       acceptor_.async_accept(new_connection_->socket_, new_endpoint_,
           boost::bind(
-            &tcp_listener::accept_handler, this,
+            &tcp_listener::handle_accept, this,
             boost::asio::placeholders::error,
             this->shared_from_this()
           ));
     }
 
-    void accept_handler(const boost::system::error_code& ec, const ptr&) {
+    void handle_accept(const boost::system::error_code& ec, const ptr&) {
       if (ec) {
-        error_signal_(ec);
+        error_signal_(error_source_accept, ec);
       } else {
         new_connection_signal_(*new_connection_);
         new_connection_->postconstructor_accepted(new_endpoint_);
@@ -66,8 +66,8 @@ class tcp_listener : public listener {
     asio::ip::tcp::acceptor acceptor_;
     boost::shared_ptr<tcp_connection<Protocol> > new_connection_;
     asio::ip::tcp::endpoint new_endpoint_;
-    boost::signal<void (tcp_connection<Protocol>&)> new_connection_signal_;
-    boost::signal<void (const boost::system::error_code&)> error_signal_;
+    boost::signal<void(tcp_connection<Protocol>&)> new_connection_signal_;
+    boost::signal<void(const error_source es, const error_code&)> error_signal_;
 };
 
 }

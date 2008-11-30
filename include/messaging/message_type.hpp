@@ -15,12 +15,12 @@
 namespace messaging {
 
 template<typename Protocol, typename Message>
-inline typename Protocol::message_type_type message_type()
+inline typename Protocol::message_index_type message_type()
 {
-  typedef typename Protocol::message_type_type type_type;
-  typedef typename boost::make_unsigned<type_type>::type int_equivalent;
+  typedef typename Protocol::message_index_type index_type;
+  typedef typename boost::make_unsigned<index_type>::type int_equivalent;
   typedef mpl::range_c<
-    int_equivalent, 0, int_equivalent(Protocol::max_message_type)
+    int_equivalent, 0, int_equivalent(Protocol::max_message_index)
   > message_types;
   typedef typename mpl::fold<
     message_types,
@@ -32,8 +32,8 @@ inline typename Protocol::message_type_type message_type()
     typename mpl::begin<messages>::type, message_it
   >::type this_index;
   BOOST_STATIC_ASSERT((this_index::value >= 0));
-  BOOST_STATIC_ASSERT((this_index::value < Protocol::max_message_type));
-  return type_type(this_index::value);
+  BOOST_STATIC_ASSERT((this_index::value < Protocol::max_message_index));
+  return index_type(this_index::value);
 }
 
 }

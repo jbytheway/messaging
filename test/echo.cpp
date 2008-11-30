@@ -10,9 +10,11 @@
 #include <boost/thread.hpp>
 #include <boost/archive/xml_oarchive.hpp>
 #include <boost/archive/xml_iarchive.hpp>
+#include <boost/serialization/string.hpp>
 #include <messaging/server.hpp>
 #include <messaging/create_connection.hpp>
 #include <messaging/send.hpp>
+#include <messaging/error_source.hpp>
 
 #define BOOST_TEST_MODULE echo test
 #include <boost/test/unit_test.hpp>
@@ -21,6 +23,8 @@ namespace asio = boost::asio;
 namespace m = messaging;
 
 namespace echo {
+
+using boost::system::error_code;
 
 enum message_type {
   message_type_join,
@@ -44,12 +48,13 @@ class message<message_type_join> {
 template<>
 class message<message_type_string> {
   public:
+    message() {}
     message(const std::string& v) : value_(v) {}
     const std::string& value() const { return value_; }
   private:
     friend class boost::serialization::access;
 
-    const std::string value_;
+    std::string value_;
 
     template<typename Archive>
     void serialize(Archive& ar, unsigned int const /*version*/) {
@@ -60,8 +65,8 @@ class message<message_type_string> {
 struct protocol {
   typedef boost::archive::xml_oarchive oarchive_type;
   typedef boost::archive::xml_iarchive iarchive_type;
-  typedef message_type message_type_type;
-  static const message_type max_message_type = message_type_max;
+  typedef message_type message_index_type;
+  static const message_type max_message_index = message_type_max;
   template<typename type_index>
   struct message_type_from_index {
     typedef message<message_type(type_index::value)> type;
@@ -84,7 +89,8 @@ class client :
 
     template<typename Connection>
     client(Connection& c, std::ostream& out) :
-      out_(out)
+      out_(out),
+      joined_(false)
     {
       c.reset_callbacks(callback_helper(*this), error_callback_helper(*this));
     }
@@ -101,23 +107,49 @@ class client :
 
     struct error_callback_helper {
       error_callback_helper(client& c) : client_(c) {}
-      void operator()(const boost::system::error_code& ec) const {
-        client_.error(ec);
+      void operator()(const m::error_source es, const error_code& ec) const {
+        client_.error(es, ec);
       }
       client& client_;
     };
 
     template<typename Message, typename Connection>
     void message(const Message&, Connection& connection) {
-      out_ << "invalid message" << std::endl;
+      std::cerr << "client: invalid message of type " <<
+        m::message_type<protocol, Message>() << std::endl;
       connection.close();
     }
 
-    void error(const boost::system::error_code& ec) {
-      std::cerr << "client: " << ec.message() << std::endl;
+    template<typename Connection>
+    void message(
+        const echo::message<message_type_join>&,
+        Connection&
+      ) {
+      if (joined_) {
+        std::cerr << "client: too many joins!" << std::endl;
+      }
+      out_ << "client: recieved join" << std::endl;
+      joined_ = true;
+    }
+
+    template<typename Connection>
+    void message(
+        const echo::message<message_type_string>& m,
+        Connection& connection
+      ) {
+      if (!joined_) {
+        std::cerr << "client: text before join!" << std::endl;
+      }
+      out_ << "client: recieved '" << m.value() << "'" << std::endl;
+      m::send(m, connection);
+    }
+
+    void error(const m::error_source es, const error_code& ec) {
+      std::cerr << "client: " << es << ": " << ec.message() << std::endl;
     }
 
     std::ostream& out_;
+    bool joined_;
 };
 
 static const uint16_t port = 4567;
@@ -151,8 +183,8 @@ class server {
 
     struct error_callback_helper {
       error_callback_helper(server& s) : server_(s) {}
-      void operator()(const boost::system::error_code& ec) const {
-        server_.error(ec);
+      void operator()(const m::error_source es, const error_code& ec) const {
+        server_.error(es, ec);
       }
       server& server_;
     };
@@ -163,8 +195,8 @@ class server {
       clients_.insert(cl);
     }
 
-    void error(const boost::system::error_code& ec) {
-      std::cerr << "server: " << ec.message() << std::endl;
+    void error(const m::error_source es, const error_code& ec) {
+      std::cerr << "server: " << es << ": " << ec.message() << std::endl;
     }
 
     m::server<protocol, callback_helper, error_callback_helper> message_server_;
@@ -193,6 +225,7 @@ class server_interface {
         ),
       out_(out)
     {
+      m::send<protocol>(echo::message<message_type_join>(), connection_);
     }
 
     void send(const std::string& text) {
@@ -218,15 +251,15 @@ class server_interface {
 
     struct error_callback_helper {
       error_callback_helper(server_interface& s) : server_interface_(s) {}
-      void operator()(const boost::system::error_code& ec) const {
-        server_interface_.error(ec);
+      void operator()(m::error_source es, const error_code& ec) const {
+        server_interface_.error(es, ec);
       }
       server_interface& server_interface_;
     };
 
     template<typename Message, typename Connection>
     void message(const Message&, Connection& connection) {
-      out_ << "invalid message" << std::endl;
+      std::cerr << "server interface: invalid message" << std::endl;
       connection.close();
     }
 
@@ -240,8 +273,9 @@ class server_interface {
       received_ += message.value();
     }
 
-    void error(const boost::system::error_code& ec) {
-      std::cerr << "sever_interface: " << ec.message() << std::endl;
+    void error(m::error_source es, const boost::system::error_code& ec) {
+      std::cerr << "server_interface: " << es << ": " << ec.message() <<
+        std::endl;
     }
 
     m::connection::ptr connection_;
@@ -256,12 +290,18 @@ BOOST_AUTO_TEST_CASE(echo_client)
 }
 
 struct io_thread {
-  io_thread(boost::asio::io_service& io) :
+  io_thread(boost::asio::io_service& io, server& server, server_interface& si) :
     io_(io),
-    timer_(io, boost::posix_time::seconds(1))
+    server_(server),
+    si_(si),
+    timer_(io, boost::posix_time::millisec(100)),
+    interrupted_(false)
   {}
   asio::io_service& io_;
+  server& server_;
+  server_interface& si_;
   asio::deadline_timer timer_;
+  bool interrupted_;
   void operator()() {
     timer_.async_wait(boost::bind(
           &io_thread::timerExpired, this, boost::asio::placeholders::error
@@ -270,17 +310,19 @@ struct io_thread {
     std::cout << "IO thread completed" << std::endl;
   }
   void timerExpired(const boost::system::error_code& e) {
-    if (e) {
+    if (interrupted_ || e) {
       std::cout << "IO thread interrupted" << std::endl;
+      si_.close();
+      server_.close_listeners();
     } else {
-      timer_.expires_from_now(boost::posix_time::seconds(1));
+      timer_.expires_from_now(boost::posix_time::millisec(100));
       timer_.async_wait(boost::bind(
             &io_thread::timerExpired, this, boost::asio::placeholders::error
           ));
     }
   }
   void interrupt() {
-    timer_.cancel();
+    interrupted_ = true;
   }
 };
 
@@ -291,14 +333,13 @@ BOOST_AUTO_TEST_CASE(echo_conversation)
   server_interface si(io, std::cout);
   std::string test("test message");
   si.send(test);
-  io_thread io_thread_obj(io);
+  io_thread io_thread_obj(io, serve, si);
   boost::thread io_t(boost::ref(io_thread_obj));
-  si.close();
-  serve.close_listeners();
+  //sleep(1);
   io_thread_obj.interrupt();
   io_t.join();
   si.confirm_receipt(test);
 }
 
-}
+} // namespace echo
 

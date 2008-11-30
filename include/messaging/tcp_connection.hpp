@@ -5,6 +5,8 @@
 
 #include <messaging/detail/message_variant.hpp>
 #include <messaging/connection.hpp>
+#include <messaging/create_message.hpp>
+#include <messaging/error_source.hpp>
 
 namespace messaging {
 
@@ -18,6 +20,8 @@ class create_connection_impl;
 template<typename Protocol>
 class tcp_connection : public connection {
   public:
+    typedef Protocol protocol;
+
     virtual generic_endpoint endpoint() const {
       return endpoint_;
     }
@@ -51,7 +55,7 @@ class tcp_connection : public connection {
 
     struct callbacks {
       virtual void message(const message_variant&, tcp_connection&) = 0;
-      virtual void error(const boost::system::error_code&) = 0;
+      virtual void error(const error_source, const error_code&) = 0;
     };
 
     template<typename Callback, typename ErrorCallback>
@@ -77,8 +81,8 @@ class tcp_connection : public connection {
         message_visitor vis(message_callback_, c);
         v.apply_visitor(vis);
       }
-      virtual void error(const boost::system::error_code& ec) {
-        error_callback_(ec);
+      virtual void error(const error_source es, const error_code& ec) {
+        error_callback_(es, ec);
       }
 
       const Callback message_callback_;
@@ -87,6 +91,9 @@ class tcp_connection : public connection {
 
     tcp_connection(asio::io_service& io) :
       socket_(io),
+      read_(new uint8_t[256]),
+      read_len_(0),
+      read_capacity_(256),
       closing_(false),
       error_(false)
     {
@@ -103,25 +110,45 @@ class tcp_connection : public connection {
       boost::system::error_code ec;
       socket_.connect(endpoint_, ec);
       if (ec) {
-        error_handler(ec);
+        handle_error(error_source_connect, ec);
       } else {
+        start_read();
         flush_output();
       }
     }
 
     void postconstructor_accepted(const asio::ip::tcp::endpoint& ep) {
       endpoint_ = ep;
+      start_read();
       flush_output();
     }
 
-    void write_handler(
+    void start_read() {
+      assert(read_len_ < read_capacity_);
+      socket_.async_read_some(
+          asio::buffer(read_.get()+read_len_, read_capacity_-read_len_),
+          boost::bind(
+            &tcp_connection::handle_read, this,
+            asio::placeholders::error,
+            asio::placeholders::bytes_transferred,
+            this->shared_from_this()
+          )
+        );
+    }
+
+    void handle_read(
+        const boost::system::error_code& ec,
+        const std::size_t bytes,
+        const ptr&
+      );
+
+    void handle_write(
         const boost::system::error_code& ec,
         const size_t bytes_transferred,
         const ptr&
-      )
-    {
+      ) {
       if (ec) {
-        error_handler(ec);
+        handle_error(error_source_write, ec);
       } else {
         assert(bytes_transferred == writing_.size());
         writing_.clear();
@@ -129,8 +156,8 @@ class tcp_connection : public connection {
       }
     }
 
-    void error_handler(const boost::system::error_code& ec) {
-      callbacks_->error(ec);
+    void handle_error(const error_source es, const error_code& ec) {
+      callbacks_->error(es, ec);
       error_ = true;
       if (closing_) {
         close();
@@ -141,6 +168,9 @@ class tcp_connection : public connection {
 
     asio::ip::tcp::endpoint endpoint_;
     asio::ip::tcp::socket socket_;
+    boost::scoped_array<uint8_t> read_;
+    std::size_t read_len_;
+    std::size_t read_capacity_;
     std::string outgoing_;
     std::string writing_;
     bool closing_; // We've been asked to close gracefully
@@ -161,6 +191,38 @@ void tcp_connection<Protocol>::send(const std::string& s)
 }
 
 template<typename Protocol>
+void tcp_connection<Protocol>::handle_read(
+    const boost::system::error_code& ec,
+    const std::size_t bytes,
+    const ptr&
+  )
+{
+  if (ec) {
+    handle_error(error_source_read, ec);
+  } else {
+    read_len_ += bytes;
+    size_t packet_len;
+    while (read_len_ >= 2+(packet_len = ((read_[0]<<8)|read_[1]))) {
+      callbacks_->message(
+          create_message<Protocol>(
+            std::string(read_.get()+2, read_.get()+2+packet_len)
+          ),
+          *this
+        );
+      memmove(read_.get(), read_.get()+2+packet_len, read_len_-packet_len-2);
+      read_len_ -= (packet_len+2);
+    }
+    if (read_len_ == read_capacity_) {
+      boost::scoped_array<uint8_t> new_read(new uint8_t[read_capacity_*2]);
+      read_capacity_ *= 2;
+      memcpy(new_read.get(), read_.get(), read_len_);
+      boost::swap(read_, new_read);
+    }
+    start_read();
+  }
+}
+
+template<typename Protocol>
 void tcp_connection<Protocol>::flush_output()
 {
   if (!writing_.empty()) {
@@ -177,7 +239,7 @@ void tcp_connection<Protocol>::flush_output()
   swap(writing_, outgoing_);
 
   asio::async_write(socket_, asio::buffer(writing_), boost::bind(
-        &tcp_connection::write_handler, this,
+        &tcp_connection::handle_write, this,
         boost::asio::placeholders::error,
         boost::asio::placeholders::bytes_transferred,
         this->shared_from_this()

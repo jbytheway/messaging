@@ -16,10 +16,10 @@ namespace messaging { namespace detail {
 template<typename Protocol>
 class message_variant {
   private:
-    typedef typename Protocol::message_type_type type_type;
-    typedef typename boost::make_unsigned<type_type>::type int_equivalent;
+    typedef typename Protocol::message_index_type index_type;
+    typedef typename boost::make_unsigned<index_type>::type int_equivalent;
     typedef mpl::range_c<
-      int_equivalent, 0, int_equivalent(Protocol::max_message_type)
+      int_equivalent, 0, int_equivalent(Protocol::max_message_index)
     > message_types;
     typedef typename mpl::fold<
       message_types,
