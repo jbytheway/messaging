@@ -5,15 +5,27 @@
 
 namespace messaging {
 
+template<typename Protocol>
 class udp_listener : public listener {
   public:
-    udp_listener(const asio::ip::udp::endpoint& ep) : endpoint_(ep)
-    {}
-
     virtual generic_endpoint endpoint() const {
       return endpoint_;
     }
+
+    virtual void close() {
+    }
   private:
+    friend class create_listener_impl;
+
+    template<typename Callback, typename ErrorCallback>
+    udp_listener(
+        asio::io_service&,
+        const asio::ip::udp::endpoint& ep,
+        const Callback&,
+        const ErrorCallback&
+      ) : endpoint_(ep)
+    {}
+
     const asio::ip::udp::endpoint endpoint_;
 };
 

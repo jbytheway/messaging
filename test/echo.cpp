@@ -70,38 +70,55 @@ struct protocol {
 
 struct ptr_hash {
   template<typename T>
-  size_t operator()(const boost::shared_ptr<T>& p) {
+  size_t operator()(const boost::shared_ptr<T>& p) const {
     return reinterpret_cast<size_t>(p.get());
   }
 };
 
-class client : boost::enable_shared_from_this<client>, boost::noncopyable {
+class client :
+  public boost::enable_shared_from_this<client>,
+  private boost::noncopyable {
   public:
     typedef boost::shared_ptr<client> ptr;
     typedef boost::weak_ptr<client> wptr;
 
     template<typename Connection>
-    ptr create(const Connection& connection);
-  protected:
-    client()
-    {}
+    client(Connection& c, std::ostream& out) :
+      out_(out)
+    {
+      c.reset_callbacks(callback_helper(*this), error_callback_helper(*this));
+    }
   private:
-};
+    struct callback_helper {
+      typedef void result_type;
+      callback_helper(client& c) : client_(c) {}
+      template<typename Message, typename Connection>
+      void operator()(const Message& m, Connection& c) const {
+        client_.message(m, c);
+      }
+      client& client_;
+    };
 
-template<typename Connection>
-class client_impl : client {
-  private:
-    friend class client;
-    client_impl(Connection& connection) :
-      connection_(connection.shared_from_this())
-    {}
-    boost::shared_ptr<Connection> connection_;
-};
+    struct error_callback_helper {
+      error_callback_helper(client& c) : client_(c) {}
+      void operator()(const boost::system::error_code& ec) const {
+        client_.error(ec);
+      }
+      client& client_;
+    };
 
-template<typename Connection>
-inline client::ptr client::create(const Connection& connection) {
-  return ptr(new client_impl<Connection>(connection));
-}
+    template<typename Message, typename Connection>
+    void message(const Message&, Connection& connection) {
+      out_ << "invalid message" << std::endl;
+      connection.close();
+    }
+
+    void error(const boost::system::error_code& ec) {
+      std::cerr << "client: " << ec.message() << std::endl;
+    }
+
+    std::ostream& out_;
+};
 
 static const uint16_t port = 4567;
 
@@ -111,37 +128,46 @@ class server {
       message_server_(
           io,
           callback_helper(*this),
+          error_callback_helper(*this),
           asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port),
           asio::ip::udp::endpoint(asio::ip::udp::v4(), port)
         ),
       out_(out)
     {
     }
+
+    void close_listeners() {
+      message_server_.close_listeners();
+    }
   private:
     struct callback_helper {
       callback_helper(server& s) : server_(s) {}
-      template<typename Message, typename Connection>
-      void operator()(const Message& message, Connection& c) const {
-        server_.message(message, c);
+      template<typename Connection>
+      void operator()(Connection& c) const {
+        server_.new_connection(c);
       }
       server& server_;
     };
 
-    template<typename Message, typename Connection>
-    void message(const Message& message, Connection& connection) {
-      out_ << "invalid message" << std::endl;
-      connection.close();
-    }
+    struct error_callback_helper {
+      error_callback_helper(server& s) : server_(s) {}
+      void operator()(const boost::system::error_code& ec) const {
+        server_.error(ec);
+      }
+      server& server_;
+    };
 
     template<typename Connection>
-    void message(
-        const echo::message<message_type_join>& message,
-        Connection& connection
-      ) {
-      clients_.insert(client::create(connection));
+    void new_connection(Connection& c) {
+      client::ptr cl(new client(c, out_));
+      clients_.insert(cl);
     }
 
-    m::server<callback_helper> message_server_;
+    void error(const boost::system::error_code& ec) {
+      std::cerr << "server: " << ec.message() << std::endl;
+    }
+
+    m::server<protocol, callback_helper, error_callback_helper> message_server_;
     std::ostream& out_;
     std::tr1::unordered_set<client::ptr, ptr_hash> clients_;
 };
@@ -156,14 +182,14 @@ class server_interface {
   public:
     server_interface(asio::io_service& io, std::ostream& out) :
       connection_(
-          m::create_connection(
-            phoenix::var(io),
-            callback_helper(*this),
-            error_callback_helper(*this),
+          m::create_connection<protocol>(
+            io,
             asio::ip::tcp::endpoint(
               asio::ip::address_v4::from_string("127.0.0.1"), port
-            )
-          )()
+            ),
+            callback_helper(*this),
+            error_callback_helper(*this)
+          )
         ),
       out_(out)
     {
@@ -199,7 +225,7 @@ class server_interface {
     };
 
     template<typename Message, typename Connection>
-    void message(const Message& message, Connection& connection) {
+    void message(const Message&, Connection& connection) {
       out_ << "invalid message" << std::endl;
       connection.close();
     }
@@ -207,8 +233,10 @@ class server_interface {
     template<typename Connection>
     void message(
         const echo::message<message_type_string>& message,
-        Connection& connection
+        Connection&
       ) {
+      out_ << "server_interface: recieved '" << message.value() << "'" <<
+        std::endl;
       received_ += message.value();
     }
 
@@ -261,11 +289,12 @@ BOOST_AUTO_TEST_CASE(echo_conversation)
   asio::io_service io;
   server serve(io, std::cout);
   server_interface si(io, std::cout);
-  io_thread io_thread_obj(io);
-  boost::thread io_t(boost::ref(io_thread_obj));
   std::string test("test message");
   si.send(test);
+  io_thread io_thread_obj(io);
+  boost::thread io_t(boost::ref(io_thread_obj));
   si.close();
+  serve.close_listeners();
   io_thread_obj.interrupt();
   io_t.join();
   si.confirm_receipt(test);

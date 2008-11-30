@@ -1,4 +1,6 @@
 all:
 
+clean:
+
 test:
 

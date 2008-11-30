@@ -10,18 +10,9 @@
 #include <boost/mpl/begin.hpp>
 
 #include <messaging/core.hpp>
+#include <messaging/detail/get_message_type.hpp>
 
 namespace messaging {
-
-namespace detail {
-
-template<typename Protocol, typename Index>
-struct get_message_type
-{
-  typedef typename Protocol::template message_type_from_index<Index>::type type;
-};
-
-}
 
 template<typename Protocol, typename Message>
 inline typename Protocol::message_type_type message_type()
