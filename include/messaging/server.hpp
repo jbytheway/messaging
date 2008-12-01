@@ -20,7 +20,11 @@
 
 namespace messaging {
 
-template<typename Protocol, typename Callback, typename ErrorCallback>
+template<
+  typename Protocol,
+  typename Callback,
+  typename ErrorCallback = Callback
+>
 class server : boost::noncopyable {
   public:
     server(
@@ -38,6 +42,21 @@ class server : boost::noncopyable {
     {
       initialize_listeners(fusion::make_vector(ep1, ep2, ep3, ep4));
     }
+    
+    server(
+        asio::io_service& io,
+        const Callback& callback,
+        const generic_endpoint& ep1 = generic_endpoint(),
+        const generic_endpoint& ep2 = generic_endpoint(),
+        const generic_endpoint& ep3 = generic_endpoint(),
+        const generic_endpoint& ep4 = generic_endpoint()
+      ) :
+      io_(io),
+      callback_(callback),
+      error_callback_(callback)
+    {
+      initialize_listeners(fusion::make_vector(ep1, ep2, ep3, ep4));
+    }
 
     template<typename ForwardSequence>
     server(
@@ -46,7 +65,8 @@ class server : boost::noncopyable {
         const ForwardSequence& endpoints
       ) :
       io_(io),
-      callback_(callback)
+      callback_(callback),
+      error_callback_(callback)
     {
       initialize_listeners(endpoints);
     }
@@ -75,8 +95,8 @@ class server : boost::noncopyable {
     }
 
     asio::io_service& io_;
-    const Callback& callback_;
-    const ErrorCallback& error_callback_;
+    const Callback callback_;
+    const ErrorCallback error_callback_;
     typedef boost::multi_index_container<
       listener::ptr,
       boost::multi_index::indexed_by<

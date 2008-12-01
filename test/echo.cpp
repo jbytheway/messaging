@@ -15,6 +15,7 @@
 #include <messaging/create_connection.hpp>
 #include <messaging/send.hpp>
 #include <messaging/error_source.hpp>
+#include <messaging/callback_helper.hpp>
 
 #define BOOST_TEST_MODULE echo test
 #include <boost/test/unit_test.hpp>
@@ -92,26 +93,8 @@ class client :
       out_(out),
       joined_(false)
     {
-      c.reset_callbacks(callback_helper(*this), error_callback_helper(*this));
+      c.reset_callbacks(m::callback_helper<client>(*this));
     }
-  private:
-    struct callback_helper {
-      typedef void result_type;
-      callback_helper(client& c) : client_(c) {}
-      template<typename Message, typename Connection>
-      void operator()(const Message& m, Connection& c) const {
-        client_.message(m, c);
-      }
-      client& client_;
-    };
-
-    struct error_callback_helper {
-      error_callback_helper(client& c) : client_(c) {}
-      void operator()(const m::error_source es, const error_code& ec) const {
-        client_.error(es, ec);
-      }
-      client& client_;
-    };
 
     template<typename Message, typename Connection>
     void message(const Message&, Connection& connection) {
@@ -147,7 +130,7 @@ class client :
     void error(const m::error_source es, const error_code& ec) {
       std::cerr << "client: " << es << ": " << ec.message() << std::endl;
     }
-
+  private:
     std::ostream& out_;
     bool joined_;
 };
@@ -155,12 +138,13 @@ class client :
 static const uint16_t port = 4567;
 
 class server {
+  private:
+    typedef m::callback_helper<server> callback_helper;
   public:
     server(asio::io_service& io, std::ostream& out) :
       message_server_(
           io,
           callback_helper(*this),
-          error_callback_helper(*this),
           asio::ip::tcp::endpoint(asio::ip::tcp::v4(), port),
           asio::ip::udp::endpoint(asio::ip::udp::v4(), port)
         ),
@@ -171,23 +155,6 @@ class server {
     void close_listeners() {
       message_server_.close_listeners();
     }
-  private:
-    struct callback_helper {
-      callback_helper(server& s) : server_(s) {}
-      template<typename Connection>
-      void operator()(Connection& c) const {
-        server_.new_connection(c);
-      }
-      server& server_;
-    };
-
-    struct error_callback_helper {
-      error_callback_helper(server& s) : server_(s) {}
-      void operator()(const m::error_source es, const error_code& ec) const {
-        server_.error(es, ec);
-      }
-      server& server_;
-    };
 
     template<typename Connection>
     void new_connection(Connection& c) {
@@ -198,8 +165,8 @@ class server {
     void error(const m::error_source es, const error_code& ec) {
       std::cerr << "server: " << es << ": " << ec.message() << std::endl;
     }
-
-    m::server<protocol, callback_helper, error_callback_helper> message_server_;
+  private:
+    m::server<protocol, callback_helper> message_server_;
     std::ostream& out_;
     std::tr1::unordered_set<client::ptr, ptr_hash> clients_;
 };
@@ -211,6 +178,8 @@ BOOST_AUTO_TEST_CASE(echo_server)
 }
 
 class server_interface {
+  private:
+    typedef m::callback_helper<server_interface> callback_helper;
   public:
     server_interface(asio::io_service& io, std::ostream& out) :
       connection_(
@@ -219,8 +188,7 @@ class server_interface {
             asio::ip::tcp::endpoint(
               asio::ip::address_v4::from_string("127.0.0.1"), port
             ),
-            callback_helper(*this),
-            error_callback_helper(*this)
+            callback_helper(*this)
           )
         ),
       out_(out)
@@ -239,23 +207,6 @@ class server_interface {
     void confirm_receipt(const std::string& text) {
       BOOST_CHECK_EQUAL(received_, text);
     }
-  private:
-    struct callback_helper {
-      callback_helper(server_interface& s) : server_interface_(s) {}
-      template<typename Message, typename Connection>
-      void operator()(const Message& message, Connection& c) const {
-        server_interface_.message(message, c);
-      }
-      server_interface& server_interface_;
-    };
-
-    struct error_callback_helper {
-      error_callback_helper(server_interface& s) : server_interface_(s) {}
-      void operator()(m::error_source es, const error_code& ec) const {
-        server_interface_.error(es, ec);
-      }
-      server_interface& server_interface_;
-    };
 
     template<typename Message, typename Connection>
     void message(const Message&, Connection& connection) {
@@ -277,7 +228,7 @@ class server_interface {
       std::cerr << "server_interface: " << es << ": " << ec.message() <<
         std::endl;
     }
-
+  private:
     m::connection::ptr connection_;
     std::string received_;
     std::ostream& out_;

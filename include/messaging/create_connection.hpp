@@ -69,6 +69,26 @@ px::function<create_connection_impl> create_connection_px;
 template<
     typename Protocol,
     typename GenericEndpoint,
+    typename Callback
+  >
+inline connection::ptr create_connection(
+      asio::io_service& io,
+      const GenericEndpoint& ep,
+      const Callback& callback
+  )
+{
+  return detail::create_connection_px(
+      px::ref(io),
+      detail::protocol_wrapper<Protocol>(),
+      ep,
+      callback,
+      callback
+    )();
+}
+
+template<
+    typename Protocol,
+    typename GenericEndpoint,
     typename Callback,
     typename ErrorCallback
   >

@@ -1,7 +1,9 @@
 #ifndef MESSAGING__TCP_CONNECTION_HPP
 #define MESSAGING__TCP_CONNECTION_HPP
 
+#include <boost/bind.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/asio/placeholders.hpp>
 
 #include <messaging/detail/message_variant.hpp>
 #include <messaging/connection.hpp>
@@ -37,6 +39,15 @@ class tcp_connection : public connection {
       }
     }
     virtual void send(const std::string&);
+
+    template<typename Callback>
+    void reset_callbacks(
+        const Callback& callback
+      ) {
+      callbacks_.reset(new specific_callbacks<Callback, Callback>(
+            callback, callback
+          ));
+    }
 
     template<typename Callback, typename ErrorCallback>
     void reset_callbacks(

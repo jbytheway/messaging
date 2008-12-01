@@ -2,6 +2,7 @@
 #define MESSSAGING__CORE_HPP
 
 #include <boost/spirit/home/phoenix/core/argument.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace boost {
   namespace asio {}

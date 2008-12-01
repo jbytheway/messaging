@@ -1,6 +1,8 @@
 #ifndef MESSAGING__LISTENER_HPP
 #define MESSAGING__LISTENER_HPP
 
+#include <boost/enable_shared_from_this.hpp>
+
 namespace messaging {
 
 class listener :
