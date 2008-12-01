@@ -237,7 +237,7 @@ class server_interface {
     }
 
     void confirm_receipt(const std::string& text) {
-      assert(received_ == text);
+      BOOST_CHECK_EQUAL(received_, text);
     }
   private:
     struct callback_helper {
@@ -294,7 +294,7 @@ struct io_thread {
     io_(io),
     server_(server),
     si_(si),
-    timer_(io, boost::posix_time::millisec(100)),
+    timer_(io, boost::posix_time::millisec(500)),
     interrupted_(false)
   {}
   asio::io_service& io_;
@@ -315,7 +315,7 @@ struct io_thread {
       si_.close();
       server_.close_listeners();
     } else {
-      timer_.expires_from_now(boost::posix_time::millisec(100));
+      timer_.expires_from_now(boost::posix_time::millisec(500));
       timer_.async_wait(boost::bind(
             &io_thread::timerExpired, this, boost::asio::placeholders::error
           ));
@@ -335,7 +335,6 @@ BOOST_AUTO_TEST_CASE(echo_conversation)
   si.send(test);
   io_thread io_thread_obj(io, serve, si);
   boost::thread io_t(boost::ref(io_thread_obj));
-  //sleep(1);
   io_thread_obj.interrupt();
   io_t.join();
   si.confirm_receipt(test);
