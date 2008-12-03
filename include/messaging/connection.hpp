@@ -16,6 +16,7 @@ class connection :
 
     virtual void close() = 0;
     virtual void close_gracefully() = 0;
+    virtual void reset_callbacks() = 0;
     virtual void send(const std::string& data) = 0;
   protected:
     connection() {}

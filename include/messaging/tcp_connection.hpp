@@ -40,6 +40,10 @@ class tcp_connection : public connection {
     }
     virtual void send(const std::string&);
 
+    virtual void reset_callbacks() {
+      callbacks_.reset(new null_callbacks());
+    }
+
     template<typename Callback>
     void reset_callbacks(
         const Callback& callback
@@ -98,6 +102,11 @@ class tcp_connection : public connection {
 
       const Callback message_callback_;
       const ErrorCallback error_callback_;
+    };
+
+    struct null_callbacks : callbacks {
+      virtual void message(const message_variant&, tcp_connection&) {}
+      virtual void error(const error_source, const error_code&) {}
     };
 
     tcp_connection(asio::io_service& io) :
