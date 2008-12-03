@@ -35,7 +35,8 @@ class generic_endpoint : boost::operators<generic_endpoint> {
     }
 
     friend size_t hash_value(const generic_endpoint& ep) {
-      size_t seed = boost::apply_visitor(detail::hash, ep.value_);
+      detail::hash_impl h;
+      size_t seed = boost::apply_visitor(h, ep.value_);
       boost::hash_combine(seed, ep.value_.which());
       return seed;
     }

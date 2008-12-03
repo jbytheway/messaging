@@ -65,8 +65,6 @@ struct hash_impl : boost::static_visitor<size_t> {
   }
 };
 
-hash_impl hash;
-
 }}
 
 #endif // MESSAGING__DETAIL__HASH_HPP
