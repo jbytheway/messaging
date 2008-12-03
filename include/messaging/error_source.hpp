@@ -1,6 +1,8 @@
 #ifndef MESSAGING__ERROR_SOURCE_HPP
 #define MESSAGING__ERROR_SOURCE_HPP
 
+#include <messaging/core.hpp>
+
 namespace messaging {
 
 enum error_source {

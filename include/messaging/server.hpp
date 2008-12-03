@@ -5,6 +5,7 @@
 #include <boost/foreach.hpp>
 #include <boost/fusion/include/make_vector.hpp>
 #include <boost/fusion/include/for_each.hpp>
+#include <boost/fusion/include/is_sequence.hpp>
 #include <boost/spirit/home/phoenix/statement/if.hpp>
 #include <boost/spirit/home/phoenix/operator.hpp>
 #include <boost/spirit/home/phoenix/stl/container/container.hpp>

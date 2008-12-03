@@ -1,6 +1,11 @@
 #ifndef MESSAGING__CONNECTION_HPP
 #define MESSAGING__CONNECTION_HPP
 
+#include <boost/noncopyable.hpp>
+#include <boost/enable_shared_from_this.hpp>
+
+#include <messaging/core.hpp>
+
 namespace messaging {
 
 class connection :

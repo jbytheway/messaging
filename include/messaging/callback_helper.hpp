@@ -1,6 +1,8 @@
 #ifndef MESSAGING__CALLBACK_HELPER_HPP
 #define MESSAGING__CALLBACK_HELPER_HPP
 
+#include <messaging/error_source.hpp>
+
 namespace messaging {
 
 template<typename Called>
