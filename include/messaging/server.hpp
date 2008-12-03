@@ -43,7 +43,7 @@ class server : boost::noncopyable {
     {
       initialize_listeners(fusion::make_vector(ep1, ep2, ep3, ep4));
     }
-    
+
     server(
         asio::io_service& io,
         const Callback& callback,
@@ -63,7 +63,11 @@ class server : boost::noncopyable {
     server(
         asio::io_service& io,
         const Callback& callback,
-        const ForwardSequence& endpoints
+        const ForwardSequence& endpoints,
+        typename boost::enable_if<
+            typename boost::fusion::traits::is_sequence<ForwardSequence>::type,
+            int
+          >::type = 0
       ) :
       io_(io),
       callback_(callback),
