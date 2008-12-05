@@ -2,14 +2,19 @@
 #define MESSAGING__CREATE_CONNECTION_HPP
 
 #include <boost/spirit/home/phoenix/core/reference.hpp>
+#include <boost/spirit/home/phoenix/function.hpp>
 
+#include <messaging/listener.hpp>
 #include <messaging/tcp_connection.hpp>
+#include <messaging/detail/protocol_wrapper.hpp>
 
 namespace messaging {
 
 namespace detail {
 
 struct create_connection_impl : boost::static_visitor<connection::ptr> {
+  BOOST_MPL_ASSERT_RELATION(PHOENIX_LIMIT,>=,6);
+
   template<
     typename Io,
     typename Protocol,
@@ -58,8 +63,6 @@ struct create_connection_impl : boost::static_visitor<connection::ptr> {
         create_connection_px(io, p, arg1, callback, error_callback)
       );
   }
-
-  BOOST_STATIC_ASSERT(PHOENIX_COMPOSITE_LIMIT >= 5);
 };
 
 px::function<create_connection_impl> create_connection_px;

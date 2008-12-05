@@ -19,8 +19,8 @@ namespace messaging {
   using px::arg_names::arg1;
   using px::arg_names::arg2;
   using px::arg_names::arg3;
-  using px::arg_names::arg4;
-  using px::arg_names::arg5;
+  //using px::arg_names::arg4;
+  //using px::arg_names::arg5;
 
   using boost::system::error_code;
 }

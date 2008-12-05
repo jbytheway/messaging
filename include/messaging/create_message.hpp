@@ -3,6 +3,7 @@
 
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/mpl/integral_c.hpp>
+#include <boost/serialization/nvp.hpp>
 
 #include <messaging/detail/message_variant.hpp>
 

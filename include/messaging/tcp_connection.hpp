@@ -2,6 +2,7 @@
 #define MESSAGING__TCP_CONNECTION_HPP
 
 #include <boost/bind.hpp>
+#include <boost/scoped_array.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/asio/placeholders.hpp>
 
