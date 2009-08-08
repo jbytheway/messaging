@@ -1,7 +1,6 @@
 #ifndef MESSAGING__DETAIL__HASH_HPP
 #define MESSAGING__DETAIL__HASH_HPP
 
-#include <boost/spirit/phoenix/functions.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ip/udp.hpp>
