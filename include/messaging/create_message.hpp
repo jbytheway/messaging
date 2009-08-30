@@ -3,6 +3,7 @@
 
 #include <boost/preprocessor/repetition/repeat.hpp>
 #include <boost/mpl/integral_c.hpp>
+#include <boost/integer_traits.hpp>
 #include <boost/serialization/nvp.hpp>
 
 #include <messaging/detail/message_variant.hpp>
@@ -51,12 +52,17 @@ create_message(const std::string& s)
   std::istringstream is(s);
   typename Protocol::iarchive_type ia(is);
   typedef typename Protocol::message_index_type index_type;
+  typedef typename boost::make_unsigned<index_type>::type unsigned_index_type;
   index_type type;
   ia >> BOOST_SERIALIZATION_NVP(type);
   BOOST_MPL_ASSERT_RELATION(
+      MESSAGING_MAX_MESSAGE_INDEX, <=,
+      boost::integer_traits<unsigned_index_type>::const_max
+    );
+  BOOST_MPL_ASSERT_RELATION(
       Protocol::max_message_index, <=, MESSAGING_MAX_MESSAGE_INDEX
     );
-  switch (type) {
+  switch (unsigned_index_type(type)) {
 #define MESSAGING_CASE(z, value, _) \
     case value:                     \
       return detail::create_specific_message<Protocol, index_type(value)>(ia);
