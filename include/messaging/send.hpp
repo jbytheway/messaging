@@ -3,6 +3,8 @@
 
 #include <sstream>
 
+#include <boost/serialization/nvp.hpp>
+
 #include <messaging/message_type.hpp>
 
 namespace messaging {
