@@ -8,6 +8,7 @@
 #include <boost/mpl/find.hpp>
 #include <boost/mpl/distance.hpp>
 #include <boost/mpl/begin.hpp>
+#include <boost/type_traits/make_unsigned.hpp>
 
 #include <messaging/core.hpp>
 #include <messaging/detail/get_message_type.hpp>
