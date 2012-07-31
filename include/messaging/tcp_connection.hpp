@@ -17,7 +17,7 @@ template<typename Protocol>
 class tcp_listener;
 
 namespace detail {
-class create_connection_impl;
+struct create_connection_impl;
 }
 
 template<typename Protocol>
