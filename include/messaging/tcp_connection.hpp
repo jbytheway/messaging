@@ -64,7 +64,7 @@ class tcp_connection : public connection {
           ));
     }
   private:
-    friend class detail::create_connection_impl;
+    friend struct detail::create_connection_impl;
     friend class tcp_listener<Protocol>;
 
     typedef typename detail::message_variant<Protocol>::type message_variant;

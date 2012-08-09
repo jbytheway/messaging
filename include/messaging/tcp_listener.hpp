@@ -19,7 +19,7 @@ class tcp_listener : public listener {
       acceptor_.close();
     }
   private:
-    friend class create_listener_impl;
+    friend struct create_listener_impl;
 
     template<typename Callback, typename ErrorCallback>
     tcp_listener(
