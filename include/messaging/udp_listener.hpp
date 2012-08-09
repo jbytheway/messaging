@@ -15,7 +15,7 @@ class udp_listener : public listener {
     virtual void close() {
     }
   private:
-    friend class create_listener_impl;
+    friend struct create_listener_impl;
 
     template<typename Callback, typename ErrorCallback>
     udp_listener(
