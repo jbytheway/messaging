@@ -1,0 +1,23 @@
+Messaging
+=========
+
+Messaging is a library intended to help specify and implement network
+protocols.
+
+It is a header-only library, so no compilation is necessary.
+
+If you do want the Makefiles to work, for running the tests or installing the
+headers (the latter is untested and unlikely to work first time) you'll need to
+ensure that the makeshift submodule is present
+
+$ git submodule update --init
+
+
+Copyright (C) 2013  John Bytheway <jbytheway at that gmail place>
+
+
+LICENSE
+-------
+Messaging is distributed under the Boost Software License - Version 1.0.  A
+copy of that license is provided in COPYING.
+
